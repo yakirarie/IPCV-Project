@@ -12,6 +12,7 @@ class Panorama:
         self.homographs = []
         self.__register_images()
         self.__leastSquareHomography()
+        self.__apply_homography(np.array([[1, 1], [0, 0]]), np.array([[1,0,0],[0,1,0],[0,0,1]])) #test
 
     def __register_images(self):
         for i in range(len(self.images)-1):
@@ -48,6 +49,16 @@ class Panorama:
             H = L.reshape(3, 3)
             self.homographs.append(H)
 
+    def __apply_homography(self, pos1, H12):
+        pos2 = []
+        for i in range(pos1.shape[0]):
+            pos2_point = H12.dot(np.append(pos1[i], 1).reshape(3, 1))
+            pos2_point = np.array([pos2_point[0]/pos2_point[-1], pos2_point[1]/pos2_point[-1]])
+            pos2.append(pos2_point)
+        print(pos2)
+        return pos2
+
+
 
 def read_images():
     images = [cv.imread(file) for file in glob.glob("./*.jpg")]
@@ -56,4 +67,6 @@ def read_images():
 
 a = read_images()
 Panorama(a)
+
+
 
