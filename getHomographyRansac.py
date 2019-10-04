@@ -169,6 +169,7 @@ def ransac(corr, thresh):
         print ("Corr size: ", len(corr), " NumInliers: ", len(inliers), "Max inliers: ", len(maxInliers))
 
         if len(maxInliers) > (len(corr)*thresh):
+            print("THRESHOLD BREAK")
             break
     return finalH, maxInliers
 
@@ -177,10 +178,6 @@ def ransac(corr, thresh):
 # Main parses argument list and runs the functions
 #
 def main():
-    args, img_name = getopt.getopt(sys.argv[1:],'', ['threshold='])
-
-    args = dict(args)
-
     estimation_thresh = 0.60
     print ("Estimation Threshold: ", estimation_thresh)
     if estimation_thresh is None:
@@ -224,7 +221,26 @@ def main():
         f.write("Final homography: \n" + str(finalH)+"\n")
         f.write("Final inliers count: " + str(len(inliers)))
         f.close()
+        return finalH
+
 
 
 if __name__ == "__main__":
-    main()
+
+    img1name = 'backyard1.jpg'
+    img2name = 'backyard2.jpg'
+
+    # query image
+    img1 = readImage(img1name)
+    # train image
+    img2 = readImage(img2name)
+    H = main()
+    img = cv2.warpPerspective(img2, H,(img2.shape[1]+img1.shape[1], img2.shape[0]+img1.shape[0]), flags=cv2.INTER_LINEAR + cv2.WARP_INVERSE_MAP)
+    img[0:img1.shape[0],0:img1.shape[1]] = img1
+
+    cv2.imshow('b', img)
+    cv2.waitKey(0)
+
+
+
+
