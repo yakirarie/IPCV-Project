@@ -5,16 +5,6 @@ import random
 
 
 #
-# Matches features given a list of keypoints, descriptors, and images
-#
-def matchFeatures(kp1, kp2, desc1, desc2, img1, img2):
-    print("Matching Features...")
-    matcher = cv2.BFMatcher(cv2.NORM_L2, True)
-    matches = matcher.match(desc1, desc2)
-    return matches
-
-
-#
 # Computers a homography from 4-correspondences
 #
 def calculateHomography(correspondences):
