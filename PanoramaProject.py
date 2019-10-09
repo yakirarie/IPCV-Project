@@ -4,10 +4,18 @@ import matplotlib.pyplot as plt
 import random
 
 
-#
+#//
+# 2.1 Feature point detection, descriptor extraction and matching -> pos1 and pos2, of size nx2 (include outliers)
+# 2.2 Registering the transformation: func applyHomography(pos1, H12) -> pos2
+#   ransacHomography(pos1, pos2, numIters, inlierTol) -> H12, inliers[] : also  ransacHomography uses the 'applyHomography'
+#   displayMatches(im1, im2, pos1, pos2, inlind) : write images after the result of ransac over the two images. [outliers == blue , inliers==yellow] 
+# 
+# #
+
+# applyHomography
 # Computers a homography from 4-correspondences
 #
-def calculateHomography(correspondences):
+def applyHomography(correspondences):
     # loop through correspondences and create assemble matrix
     aList = []
     for corr in correspondences:
@@ -37,7 +45,7 @@ def calculateHomography(correspondences):
 #
 # Calculate the geometric distance between estimated points and original points
 #
-def geometricDistance(correspondence, h):
+def geometricDistance_Ransac_helper(correspondence, h):
 
     p1 = np.transpose(np.matrix([correspondence[0].item(0), correspondence[0].item(1), 1]))
     estimatep2 = np.dot(h, p1)
@@ -53,10 +61,13 @@ def geometricDistance(correspondence, h):
 #
 # Runs through ransac algorithm, creating homographies from random correspondences
 #
-def ransac(corr):
+def ransacHomography(corr, numIters=1000, inlierTol=5):
     maxInliers = []
+    
+    maxTreshHold= -1000000
+    outliers = []
     finalH = None
-    for i in range(1000):
+    for i in range(numIters):
         # find 4 random points to calculate a homography
         corr1 = corr[random.randrange(0, len(corr))]
         corr2 = corr[random.randrange(0, len(corr))]
@@ -67,20 +78,23 @@ def ransac(corr):
         randomFour = np.vstack((randomFour, corr4))
 
         # call the homography function on those points
-        h = calculateHomography(randomFour)
+        h = applyHomography(randomFour)
         inliers = []
 
         for i in range(len(corr)):
-            d = geometricDistance(corr[i], h)
-            if d < 5:
+            inlierTol = geometricDistance_Ransac_helper(corr[i], h)
+            if inlierTol < 5:
                 inliers.append(corr[i])
+            elif inlierTol > maxTreshHold:
+                maxTreshHold = inlierTol
+                outliers.append(corr[i])
 
         if len(inliers) > len(maxInliers):
             maxInliers = inliers
             finalH = h
-        print("Corr size: ", len(corr), " NumInliers: ", len(inliers), "Max inliers: ", len(maxInliers))
+        # print("Corr size: ", len(corr), " NumInliers: ", len(inliers), "Max inliers: ", len(maxInliers))
 
-    return finalH, maxInliers
+    return finalH, maxInliers, outliers
 
 
 #
@@ -97,6 +111,13 @@ def register2images(img1name, img2name):
     img2 = cv2.imread(img2name, 0)
     # find features and keypoints
 
+    # concatenate two images for inliers display
+    imgconcat = np.concatenate((img1, img2), axis=1)
+    imgconcatH = imgconcat.shape[0]
+    imgconcatW = imgconcat.shape[1]
+    print("shape of concated: {}".format(imgconcat.shape)) 
+    cv2.imwrite('concat.jpg', imgconcat)
+
     correspondenceList = []
     if img1 is not None and img2 is not None:
         sift = cv2.xfeatures2d.SIFT_create()
@@ -110,19 +131,56 @@ def register2images(img1name, img2name):
 
         matcher = cv2.BFMatcher(cv2.NORM_L2, True)
         matches = matcher.match(desc1, desc2)
+        # print(matches)
 
         for match in matches:
             (x1, y1) = keypoints[0][match.queryIdx].pt
+            # print("x1 y2: {} {} ".format(x1, y1)) 
             (x2, y2) = keypoints[1][match.trainIdx].pt
             correspondenceList.append([x1, y1, x2, y2])
 
         corrs = np.matrix(correspondenceList)
 
         #run ransac algorithm
-        finalH, inliers = ransac(corrs)
-        print("Final homography: ", finalH)
-        print("Final inliers count: ", len(inliers))
+        numIters = 1000
+        finalH, inliers, outliers = ransacHomography(corrs,numIters)
+        print("size of corrs : {}".format(corrs.shape))
+        displayMatches(inliers, "inlier", imgconcatH,imgconcatW,img1name)
+        displayMatches(outliers, "outlier",imgconcatH,imgconcatW,img1name)
+        
+        
         return finalH, img1, img2
+
+# Write inliers or outliers in to file.
+# Cordinaties - [x1, y1, x2, y2], type - "inlier" || "outlier"
+def displayMatches(Cordinaties, typeCords, imageHeight, imageWidth,img1name):
+    x = []
+    y = []
+    extentSetting = [0, imageWidth, 0, imageHeight]
+    for cord in Cordinaties:
+        arrCords = cord.A
+        xx1, yy1, xx2, yy2 = arrCords.T
+        x.append(xx1[0])
+        x.append(xx2[0])
+        y.append(yy1[0])
+        y.append(yy2[0])
+        # print("{} {} {} {}".format(xx1, yy1, xx2, yy2))
+
+    #Writing to file.
+    img33 = plt.imread("concat.jpg")
+
+    fig, ax = plt.subplots()
+    ax.imshow(img33,extent=extentSetting,cmap=plt.get_cmap('gray'))
+    for i in range(0, len(x), 2):
+        x[i+1] = x[i+1] + 600
+        if(typeCords == "inlier"):
+            ax.plot(x[i:i+2], y[i:i+2], '.-y',linewidth=0.5)
+        else:
+            ax.plot(x[i:i+2], y[i:i+2], '.-b',linewidth=0.5)
+        # print("Rendering point: {}, {}".format(x[i:i+2], y[i:i+2]))
+    
+    fileName = "outMatches_{}_{}".format(typeCords,img1name)
+    plt.savefig(fileName)
 
 
 def create_panorama(images_names, pan_num):
@@ -144,6 +202,27 @@ def create_panorama(images_names, pan_num):
         panorama[0:registerd_images[i].shape[0], 0:registerd_images[i].shape[1]] = registerd_images[i]
     panorama[0:first_img.shape[0], 0:first_img.shape[1]] = first_img
     cv2.imwrite('panorama'+str(pan_num)+'.jpg', panorama)
+
+def drawMatches(imageA, imageB, kpsA, kpsB, matches, status):
+    # initialize the output visualization image
+    (hA, wA) = imageA.shape[:2]
+    (hB, wB) = imageB.shape[:2]
+    vis = np.zeros((max(hA, hB), wA + wB, 3), dtype="uint8")
+    vis[0:hA, 0:wA] = imageA
+    vis[0:hB, wA:] = imageB
+
+    # loop over the matches
+    for ((trainIdx, queryIdx), s) in zip(matches, status):
+        # only process the match if the keypoint was successfully
+        # matched
+        if s == 1:
+            # draw the match
+            ptA = (int(kpsA[queryIdx][0]), int(kpsA[queryIdx][1]))
+            ptB = (int(kpsB[trainIdx][0]) + wA, int(kpsB[trainIdx][1]))
+            cv2.line(vis, ptA, ptB, (0, 255, 0), 1)
+
+    # return the visualization
+    return vis
 
 
 if __name__ == "__main__":
