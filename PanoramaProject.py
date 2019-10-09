@@ -50,7 +50,7 @@ def geometricDistance_Ransac_helper(correspondence, h):
     p1 = np.transpose(np.matrix([correspondence[0].item(0), correspondence[0].item(1), 1]))
     estimatep2 = np.dot(h, p1)
     if estimatep2.item(2) == 0:
-        estimatep2 = (1 / 0.0001) * estimatep2
+        estimatep2 = (1 / 0.1) * estimatep2
     estimatep2 = (1/estimatep2.item(2))*estimatep2
 
     p2 = np.transpose(np.matrix([correspondence[0].item(2), correspondence[0].item(3), 1]))
@@ -67,7 +67,10 @@ def ransacHomography(corr, numIters=1000, inlierTol=5):
     maxTreshHold= -1000000
     outliers = []
     finalH = None
+    print("RANSAC, max iterations: {}".format(numIters))
     for i in range(numIters):
+        if i%50 == 0:
+            print("iteration number: {}".format(i))
         # find 4 random points to calculate a homography
         corr1 = corr[random.randrange(0, len(corr))]
         corr2 = corr[random.randrange(0, len(corr))]
@@ -172,7 +175,7 @@ def displayMatches(Cordinaties, typeCords, imageHeight, imageWidth,img1name):
     fig, ax = plt.subplots()
     ax.imshow(img33,extent=extentSetting,cmap=plt.get_cmap('gray'))
     for i in range(0, len(x), 2):
-        x[i+1] = x[i+1] + 600
+        x[i+1] = x[i+1] + imageWidth/2
         if(typeCords == "inlier"):
             ax.plot(x[i:i+2], y[i:i+2], '.-y',linewidth=0.5)
         else:
